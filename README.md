@@ -1,6 +1,3 @@
-# utl-join-us-addresses-with-census-acs-five-yr-block-group-data-most-granular
-Join US addresses with census acs 5yr block group data most granular census data
-
     %let pgm=utl-join-us-addresses-with-census-acs-five-yr-block-group-data-most-granular;
 
     %stop_submission;
@@ -23,6 +20,8 @@ Join US addresses with census acs 5yr block group data most granular census data
 
           2  Unzip the self extracting 7-zip file you downloaded save in d:/adr/csv/adr_fix132e6.csv
              Just click on the exe file (131,789,977 records)
+
+          3  proc datasets code to label all acs5yr variables (except MOE variables)
 
          CENSUS ACS 5YR ALL VARIABLES (SAS DATASET)
 
@@ -53,6 +52,10 @@ Join US addresses with census acs 5yr block group data most granular census data
               (a must have)
 
             7 related repos
+
+            8 proc datasets program
+              https://tinyurl.com/bddx6k6h
+              https://github.com/rogerjdeangelis/utl-join-us-addresses-with-census-acs-five-yr-block-group-data-most-granular/blob/main/lblvar.sas
 
 
     AS A SIDE NOTE
@@ -1088,6 +1091,135 @@ Join US addresses with census acs 5yr block group data most granular census data
     https://github.com/rogerjdeangelis/utl-use-geo-fencing-to-find-all-addresses-in-a-latitude-longitude-quadrangle-reverse-geocoding
     https://github.com/rogerjdeangelis/utl_geocode_and_reverse_geocode_netherland_addresses_and_latitudes_longitudes
 
+    /*___                               _       _                 _
+     ( _ )   _ __  _ __ ___   ___    __| | __ _| |_ __ _ ___  ___| |_ ___
+     / _ \  | `_ \| `__/ _ \ / __|  / _` |/ _` | __/ _` / __|/ _ \ __/ __|
+    | (_) | | |_) | | | (_) | (__  | (_| | (_| | || (_| \__ \  __/ |_\__ \
+     \___/  | .__/|_|  \___/ \___|  \__,_|\__,_|\__\__,_|___/\___|\__|___/
+            |_|
+    */
+
+    /*---- create small 30 ob test of the acssd1.acs5yr census data ----*/
+    data tstacs5yr;
+      set acssd1.acs5yr(firstobs=30 obs=30);
+    run;quit;
+
+    data namlbl;
+      length lblvar $200.;
+      set acssd1.acs_meta;
+      /*---- fix potential quotes within quotes ----*/
+      short_label=compress(short_label,"'");
+      short_label=compress(short_label,'"');
+      lblvar = cats(variable_name,'="',short_label,'"');
+      output;
+      if not missing(percent_variable) then do;
+         lblvar = cats(percent_variable,'="',short_label,'"');
+         output;
+      end;
+      keep lblvar;
+    run;quit;
+
+    proc sort data=namlbl out=namlblunq nodupkey;
+    by lblvar;
+    run;quit;
+
+
+    %let _libname=work;
+    %let _acs5yr=tstacs5yr;
+
+    data namlbl;
+      file "%sysfunc(pathname(work))/lblvar.sas";
+      set namlblunq end=dne;
+      if index(lblvar,"_MOE")=0;
+      if _n_=1 then do;
+         put "proc datasets lib=&_libname; modify &_acs5yr; label ";
+      end;
+      else do;
+         if dne then Put ";run;quit;";
+      end;
+    run;quit;
+
+    %inc "%sysfunc(pathname(work))/lblvar.sas";
+
+    ods trace on;
+    ods output position=pos;
+    proc contents data=tstacs5yr position;
+    run;quit;
+    ods trace off ;
+
+    proc print data=pos(where=(index(variable,'_MOE')=0));
+    run;quit;
+
+    /**************************************************************************************************************************/
+    /*                                                                                                                        */
+    /*      MEMBER     NUM  VARIABLE     TYPE  LEN     POS    FORMAT       INFORMAT LABEL                                     */
+    /*                                                                                                                        */
+    /*  WORK.TSTACS5YR   1  YEARS        Char    9    4906                                                                    */
+    /*  WORK.TSTACS5YR   2  PERIOD       Char    1    4915                                                                    */
+    /*  WORK.TSTACS5YR   3  DATECREATED  Num     8       0    DATE.                                                           */
+    /*  WORK.TSTACS5YR   4  SUMLEV       Char    3    4916    $CHAR3.      $CHAR3.  Summary level                             */
+    /*  WORK.TSTACS5YR   5  GEOID        Char   40    4919    $CHAR40.     $CHAR40. Geographic ID                             */
+    /*  WORK.TSTACS5YR   7  STATE        Char    2    5159    $CHAR2.      $CHAR2.  State                                     */
+    /*  WORK.TSTACS5YR   8  STAB         Char    2    5161    $CHAR2.      $CHAR2.  State postal abbreviation                 */
+    /*  WORK.TSTACS5YR   9  COUNTY       Char    5    5163    $COUNTY.              County                                    */
+    /*  WORK.TSTACS5YR  10  FIPCO        Char    5    5168    $CHAR5.               County FIPS code                          */
+    /*  WORK.TSTACS5YR  11  TRACT        Char  200    5173                                                                    */
+    /*  WORK.TSTACS5YR  12  BG           Char    1    5373    $CHAR1.      $CHAR1.  Census Block Group                        */
+    /*  WORK.TSTACS5YR  13  CBSA         Char    5    5374    $CHAR5.               Core-Based (metro/micro) Statistical Area */
+    /*  WORK.TSTACS5YR  14  CBSAYR       Char    4    5379    $CHAR4.               CBSA vintage                              */
+    /*  WORK.TSTACS5YR  15  LANDSQMI     Num     8       8    9.2                   Land Area (square miles)                  */
+    /*  WORK.TSTACS5YR  16  AREASQMI     Num     8      16    9.2                   Total Area (square miles)                 */
+    /*  WORK.TSTACS5YR  17  INTPTLAT     Num     8      24    10.6                                                            */
+    /*  WORK.TSTACS5YR  18  INTPTLON     Num     8      32    11.6                                                            */
+    /*  WORK.TSTACS5YR  19  TOTPOP20     Num     8      40                          2020 Census total population              */
+    /*  WORK.TSTACS5YR  20  ESRIID       Char   51    5383                          Geographic Code Identifier                */
+    /*  WORK.TSTACS5YR  21  TOTPOP       Num     5    1256    COMMA12.              Total population                          */
+    /*  WORK.TSTACS5YR  22  AGE0_4       Num     5    1261    COMMA12.                                                        */
+    /*  WORK.TSTACS5YR  23  PCTAGE0_4    Num     4      48    6.2                   Under 5 years                             */
+    /*  WORK.TSTACS5YR  24  AGE5_9       Num     5    1266    COMMA12.              5 to 9 years                              */
+    /*  WORK.TSTACS5YR  25  PCTAGE5_9    Num     4      52    6.2                   5 to 9 years                              */
+    /*  WORK.TSTACS5YR  26  AGE10_14     Num     5    1271    COMMA12.              10 to 14 years                            */
+    /*  WORK.TSTACS5YR  27  PCTAGE10_14  Num     4      56    6.2                   10 to 14 years                            */
+    /*  WORK.TSTACS5YR  28  AGE15_19     Num     5    1276    COMMA12.              15 to 19 years                            */
+    /*  WORK.TSTACS5YR  29  PCTAGE15_19  Num     4      60    6.2                   15 to 19 years                            */
+    /*  WORK.TSTACS5YR  30  AGE20_24     Num     5    1281    COMMA12.              20 to 24 years                            */
+    /*  WORK.TSTACS5YR  31  PCTAGE20_24  Num     4      64    6.2                   20 to 24 years                            */
+    /*  WORK.TSTACS5YR  32  AGE25_34     Num     5    1286    COMMA12.              25 to 34 years                            */
+    /*  WORK.TSTACS5YR  33  PCTAGE25_34  Num     4      68    6.2                   25 to 34 years                            */
+    /*  WORK.TSTACS5YR  34  AGE35_44     Num     5    1291    COMMA12.              35 to 44 years                            */
+    /*  ....                                                                                                                  */
+    /*                                                                                                                        */
+    /* file "%sysfunc(pathname(work))/lblvar.sas";                                                                            */
+    /*                                                                                                                        */
+    /* proc datasets lib=acssd1; modify tstacs5yr; label                                                                      */
+    /* Age10_14="10 to 14 years"                                                                                              */
+    /* Age15_19="15 to 19 years"                                                                                              */
+    /* Age20_24="20 to 24 years"                                                                                              */
+    /* Age25_34="25 to 34 years"                                                                                              */
+    /* Age35_44="35 to 44 years"                                                                                              */
+    /* Age45_54="45 to 54 years"                                                                                              */
+    /* Age55_59="55 to 59 years"                                                                                              */
+    /* Age5_9="5 to 9 years"                                                                                                  */
+    /* Age60_64="60 to 64 years"                                                                                              */
+    /* Age65_74="65 to 74 years"                                                                                              */
+    /* Age75_84="75 to 84 years"                                                                                              */
+    /* Agriculture="Agriculture, forestry, fishing and hunting, and mining"                                                   */
+    /* Asian1="Asian"                                                                                                         */
+    /* Asian2="Asian (alone or in combination)"                                                                               */
+    /* Associates="Associates degree"                                                                                         */
+    /* ...                                                                                                                    */
+    /* ctWhite2="White (alone or in combination)"                                                                             */
+    /* pctWholesaleTrade="Wholesale trade"                                                                                    */
+    /* pctWidowed="Widowed"                                                                                                   */
+    /* pctWomen15to19="Women 15 to 19 years of age"                                                                           */
+    /* pctWomen20to34="Women 20 to 34 years of age"                                                                           */
+    /* pctWomen35to50="Women 35 to 50 years of age"                                                                           */
+    /* pctWomenGivingBirth="Women 15 to 50 years old who had a birth in the past 12 months"                                   */
+    /* pctWorkAtHome="Worked at home"                                                                                         */
+    /* ;run;quit;                                                                                                             */
+    /**************************************************************************************************************************/
+
+
     /*              _
       ___ _ __   __| |
      / _ \ `_ \ / _` |
@@ -1095,3 +1227,4 @@ Join US addresses with census acs 5yr block group data most granular census data
      \___|_| |_|\__,_|
 
     */
+
